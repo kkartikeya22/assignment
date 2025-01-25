@@ -1,52 +1,56 @@
 import numpy as np
-import math
 import csv
 
-PI = math.pi
+# Parameters
+N = 128  # Number of grid points
+L = 1.0  # Length of the domain
+T = 0.1  # Total time
+dt = 0.00001  # Time step
+dx = L / N  # Spatial step
+num_steps = int(T / dt)  # Number of time steps
 
-def initialize(N, dx):
-    return np.sin(2 * PI * np.arange(N) * dx)
+# Initial condition: u(x, 0) = sin(2*pi*x)
+u = np.zeros(N)
+for i in range(N):
+    u[i] = np.sin(2 * np.pi * i * dx)
 
-def update(u, alpha, N):
-    u_new = np.zeros_like(u)
-    for i in range(N):
-        left = N - 1 if i == 0 else i - 1
-        right = 0 if i == N - 1 else i + 1
-        u_new[i] = u[i] + alpha * (u[right] - 2 * u[i] + u[left])
-    return u_new
+# Open a CSV file to store the results
+with open('diffusion_results.csv', mode='w', newline='') as file:
+    writer = csv.writer(file)
+    
+    # Write header
+    writer.writerow(['Time Step', 'x', 'Numerical Solution', 'Exact Solution', 'Error', 'Average Error'])
+    
+    # Time-stepping loop
+    for n in range(num_steps):
+        # Create a temporary array for the updated values
+        u_new = np.zeros(N)
 
-def compute_error(u, u_analytical):
-    return np.mean(np.abs(u - u_analytical))
+        # Apply the explicit Euler and central difference scheme
+        for i in range(1, N - 1):
+            u_new[i] = u[i] + dt * (u[i+1] - 2*u[i] + u[i-1]) / (dx * dx)
 
-def analytical_solution(N, dx, t):
-    x = np.arange(N) * dx
-    return np.sin(2 * PI * x) * np.exp(-4 * PI**2 * t)
+        # Periodic boundary conditions
+        u_new[0] = u_new[N-2]
+        u_new[N-1] = u_new[1]
 
-def main():
-    N = 128                # Number of grid points
-    dx = 1.0 / N           # Spatial resolution
-    dt = 0.00001           # Time step
-    alpha = dt / (dx * dx)
-    steps = [0, 100, 500, 1000]
+        # Update the solution for the next time step
+        u = u_new
 
-    u = initialize(N, dx)
-    u_new = np.zeros_like(u)
+        # Compute the exact solution at this time step
+        t = n * dt  # Current time
+        u_exact = np.sin(2 * np.pi * np.linspace(0, L, N)) * np.exp(-2 * np.pi**2 * t)
 
-    with open("output.csv", mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["TimeStep", "x", "u_numerical", "u_analytical", "error"])
+        # Compute the error at each grid point
+        error = np.abs(u - u_exact)
 
-        for n in range(1001):
-            if n in steps:
-                u_analytical = analytical_solution(N, dx, n * dt)
-                error = compute_error(u, u_analytical)
-                for i in range(N):
-                    writer.writerow([n, i * dx, u[i], u_analytical[i], error])
-            
-            u_new = update(u, alpha, N)
-            u = u_new.copy()
+        # Compute the average error across the domain
+        avg_error = np.mean(error)
 
-    print("Simulation complete. Results saved to output.csv.")
+        # Output solution and error at selected time steps
+        if n == 0 or n == 100 or n == 500 or n == 1000:
+            for i in range(N):
+                # Write data for each time step
+                writer.writerow([n, i * dx, u[i], u_exact[i], error[i], avg_error])
 
-if __name__ == "__main__":
-    main()
+print("Results saved to 'diffusion_results.csv'")
